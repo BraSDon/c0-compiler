@@ -1,3 +1,4 @@
+
 package edu.kit.kastel.vads.compiler.backend.x86;
 
 import edu.kit.kastel.vads.compiler.ir.IrGraph;
@@ -12,14 +13,12 @@ import java.util.Set;
 
 public class X86CodeGenerator {
 
-    // Temporary registers for 32-bit operations
-    private static final String TEMP_REG_1 = "eax"; // Primary accumulator, first operand, result
-    private static final String TEMP_REG_2 = "ebx"; // Secondary operand
-    private static final String DIV_REMAINDER_REG = "edx"; // Used by idiv for remainder, and for CDQ
+    private static final String TEMP_REG_1 = "%eax";
+    private static final String TEMP_REG_2 = "%ebx";
+    private static final String DIV_REMAINDER_REG = "%edx";
 
-    // 64-bit registers for syscall interface
-    private static final String RAX = "rax"; // Syscall number, return value from _main
-    private static final String RDI = "rdi"; // First argument to syscall (exit code)
+    private static final String RAX = "%rax";
+    private static final String RDI = "%rdi";
 
     private static final String INDENT = "    ";
 
@@ -32,13 +31,10 @@ public class X86CodeGenerator {
             StackSlotAllocator allocator = new StackSlotAllocator();
             Map<Node, StackSlot> slots = allocator.assignSlots(graph);
             int totalSlotSpace = allocator.getTotalAllocatedSlotSize();
-            // Align stack space for function frame.
-            // RSP should be 16-byte aligned before a call.
             int alignedStackSpace = (totalSlotSpace + 15) & -16;
 
             emitFunctionPreamble(asm, "_main", alignedStackSpace);
 
-            // Function Body
             Set<Node> visited = new HashSet<>();
             visited.add(graph.endBlock());
             emitCode(graph.endBlock(), visited, asm, slots);
@@ -49,36 +45,34 @@ public class X86CodeGenerator {
     }
 
     private void emitHeader(ASMBuilder asm) {
-        // TODO: check
         asm.formatted("""
-                .intel_syntax noprefix
                 .global main
                 .global _main
                 .text
 
                 main:
                     call _main
-                    mov %s, %s   # Move _main's result (in RAX) to syscall arg0 (RDI)
-                    mov %s, 60   # syscall_exit number (0x3C)
+                    movq %s, %s   # Move _main's result (in RAX) to syscall arg0 (RDI)
+                    movq $60, %s   # syscall_exit number (0x3C)
                     syscall
 
-                """, RDI, RAX, RAX);
+                """, RAX, RDI, RAX);
     }
 
     private void emitFunctionPreamble(ASMBuilder asm, String functionName, int stackSize) {
         asm.ln(functionName + ":");
-        asm.ln("push rbp");
-        asm.ln("mov rbp, rsp");
+        asm.ln("pushq %rbp");
+        asm.ln("movq %rsp, %rbp");
         if (stackSize > 0) {
-            asm.iraw("sub rsp, " + stackSize).comment("Allocate stack for locals");
+            asm.iraw("subq $" + stackSize + ", %rsp").comment("Allocate stack for locals");
         }
     }
 
     private void emitFunctionPostamble(ASMBuilder asm, int stackSize) {
         if (stackSize > 0) {
-            asm.iraw("add rsp, " + stackSize).comment("Deallocate stack for locals");
+            asm.iraw("addq $" + stackSize + ", %rsp").comment("Deallocate stack for locals");
         }
-        asm.ln("pop rbp");
+        asm.ln("popq %rbp");
         asm.ln("ret");
     }
 
@@ -92,72 +86,19 @@ public class X86CodeGenerator {
 
         switch (node) {
             case ConstIntNode constNode -> {
-                StackSlot slot = slots.get(constNode);
-                asm.formatted("mov %s, %s", slot.toDwordPtrString(), constNode.value())
-                        .comment("Const " + constNode.value() + " -> " + slot);
+                StackSlot slot = slots.get(node);
+                emitMoveImmToMem(slot.toString(), constNode.value(), asm);
             }
             case AddNode add -> emitBinaryOp(asm, add, "add", slots, "Add");
             case SubNode sub -> emitBinaryOp(asm, sub, "sub", slots, "Sub");
-            case MulNode mul -> emitBinaryOp(asm, mul, "imul", slots, "Mul"); // Signed multiplication
+            case MulNode mul -> emitBinaryOp(asm, mul, "imul", slots, "Mul");
 
-            case DivNode div -> {
-                // idiv r/m32: Divides EDX:EAX by r/m32. Quotient in EAX, Remainder in EDX.
-                Node left = NodeSupport.predecessorSkipProj(div, BinaryOperationNode.LEFT);
-                Node right = NodeSupport.predecessorSkipProj(div, BinaryOperationNode.RIGHT);
-                StackSlot leftSlot = slots.get(left);
-                StackSlot rightSlot = slots.get(right);
-                StackSlot resultSlot = slots.get(div);
-
-                asm.formatted("mov %s, %s", TEMP_REG_1, leftSlot.toDwordPtrString())
-                        .comment("Div: Load dividend (LHS) into " + TEMP_REG_1);
-                asm.ln("cdq").comment("Sign-extend EAX into EDX:EAX");
-                asm.formatted("idiv %s", rightSlot.toDwordPtrString())
-                        .comment("Divide by divisor (RHS)");
-                asm.formatted("mov %s, %s", resultSlot.toDwordPtrString(), TEMP_REG_1)
-                        .comment("Store quotient (in EAX) into " + resultSlot);
-            }
-            case ModNode mod -> {
-                Node left = NodeSupport.predecessorSkipProj(mod, BinaryOperationNode.LEFT);
-                Node right = NodeSupport.predecessorSkipProj(mod, BinaryOperationNode.RIGHT);
-                StackSlot leftSlot = slots.get(left);
-                StackSlot rightSlot = slots.get(right);
-                StackSlot resultSlot = slots.get(mod);
-
-                asm.formatted("mov %s, %s", TEMP_REG_1, leftSlot.toDwordPtrString())
-                        .comment("Mod: Load dividend (LHS) into " + TEMP_REG_1);
-
-                asm.ln("cdq").comment("Sign-extend EAX into EDX:EAX");
-                asm.formatted("idiv %s", rightSlot.toDwordPtrString())
-                        .comment("Divide by divisor (RHS)");
-                asm.formatted("mov %s, %s", resultSlot.toDwordPtrString(), DIV_REMAINDER_REG)
-                        .comment("Store remainder (in EDX) into " + resultSlot);
-            }
-            case ReturnNode ret -> {
-                Node returnValueNode = NodeSupport.predecessorSkipProj(ret, ReturnNode.RESULT);
-                StackSlot valueSlot = slots.get(returnValueNode);
-
-                if (valueSlot != null) {
-                    asm.formatted("mov %s, %s", TEMP_REG_1, valueSlot.toDwordPtrString())
-                            .comment("Load return value from " + valueSlot + " into " + TEMP_REG_1);
-                } else if (returnValueNode instanceof ConstIntNode constVal) {
-                    // This case handles `return <literal>;` if constants are not put in slots by
-                    // default.
-                    // Current `needsStackSlot` and `StackSlotAllocator` puts all ConstIntNodes in
-                    // slots.
-                    // So this branch might be defensive/unreachable with current allocator logic.
-                    asm.formatted("mov %s, %s", TEMP_REG_1, constVal.value())
-                            .comment("Load immediate return value into " + TEMP_REG_1);
-                } else {
-                    throw new IllegalStateException(
-                            "ReturnNode's operand has no slot and is not a ConstIntNode: " + returnValueNode);
-                }
-                // The actual 'ret' instruction is in the function postamble. EAX holds the
-                // return value.
-            }
+            case DivNode div -> emitDiv(asm, div, slots);
+            case ModNode mod -> emitMod(asm, mod, slots);
+            case ReturnNode ret -> emitReturn(asm, ret, slots);
             case ProjNode _,StartNode _,Block _ -> {
-                /* Structural nodes, no direct code for spill-everything */ }
+            }
             case Phi _ -> {
-                // L1 is not expected to generate Phi nodes.
                 asm.ln("# Phi node encountered - L1 should not have these.");
             }
             default -> {
@@ -166,32 +107,85 @@ public class X86CodeGenerator {
         }
     }
 
+    private void emitMoveImmToMem(String memDestAtt, int immVal, ASMBuilder asm) {
+        asm.formatted("movl $%d, %s", immVal, memDestAtt);
+    }
+
+    private void emitMoveMemToReg(String regDestAtt, String memSrcAtt, ASMBuilder asm) {
+        asm.formatted("movl %s, %s", memSrcAtt, regDestAtt);
+    }
+
+    private void emitMoveImmToReg(String regDestAtt, int immVal, ASMBuilder asm) {
+        asm.formatted("movl $%d, %s", immVal, regDestAtt);
+    }
+
+    private void emitMoveRegToMem(String memDestAtt, String regSrcAtt, ASMBuilder asm) {
+        asm.formatted("movl %s, %s", regSrcAtt, memDestAtt);
+    }
+
+    private void emitDiv(ASMBuilder asm, DivNode div, Map<Node, StackSlot> slots) {
+        emitDivOrModOp(asm, div, "div", slots);
+    }
+
+    private void emitMod(ASMBuilder asm, ModNode mod, Map<Node, StackSlot> slots) {
+        emitDivOrModOp(asm, mod, "mod", slots);
+    }
+
+    private void emitReturn(ASMBuilder asm, ReturnNode ret, Map<Node, StackSlot> slots) {
+        Node returnValueNode = NodeSupport.predecessorSkipProj(ret, ReturnNode.RESULT);
+        StackSlot valueSlot = slots.get(returnValueNode);
+
+        if (valueSlot != null) {
+            emitMoveMemToReg(TEMP_REG_1, valueSlot.toString(), asm);
+        } else if (returnValueNode instanceof ConstIntNode constVal) {
+            emitMoveImmToReg(TEMP_REG_1, constVal.value(), asm);
+        } else {
+            throw new IllegalStateException(
+                    "ReturnNode's operand has no slot and is not a ConstIntNode: " + returnValueNode);
+        }
+    }
+
+    private void emitDivOrModOp(ASMBuilder asm, BinaryOperationNode divOrMod, String instruction,
+            Map<Node, StackSlot> slots) {
+        Node left = NodeSupport.predecessorSkipProj(divOrMod, BinaryOperationNode.LEFT);
+        Node right = NodeSupport.predecessorSkipProj(divOrMod, BinaryOperationNode.RIGHT);
+        StackSlot leftSlot = slots.get(left);
+        StackSlot rightSlot = slots.get(right);
+        StackSlot resultSlot = slots.get(divOrMod);
+
+        validateSlots(leftSlot, rightSlot, resultSlot, instruction);
+
+        emitMoveMemToReg(TEMP_REG_1, leftSlot.toString(), asm);
+        asm.ln("cltd").comment("Sign-extend EAX into EDX:EAX");
+        asm.formatted("idivl %s", rightSlot.toString());
+        emitMoveRegToMem(resultSlot.toString(), instruction.equals("mod") ? DIV_REMAINDER_REG : TEMP_REG_1, asm);
+    }
+
     private void emitBinaryOp(ASMBuilder asm, BinaryOperationNode opNode, String instruction,
-            Map<Node, StackSlot> stackSlotsMap, String opNameComment) {
+            Map<Node, StackSlot> slots, String opNameComment) {
         Node left = NodeSupport.predecessorSkipProj(opNode, BinaryOperationNode.LEFT);
         Node right = NodeSupport.predecessorSkipProj(opNode, BinaryOperationNode.RIGHT);
 
-        StackSlot leftSlot = stackSlotsMap.get(left);
-        StackSlot rightSlot = stackSlotsMap.get(right);
-        StackSlot resultSlot = stackSlotsMap.get(opNode);
+        StackSlot leftSlot = slots.get(left);
+        StackSlot rightSlot = slots.get(right);
+        StackSlot resultSlot = slots.get(opNode);
 
-        // Sanity checks
-        if (leftSlot == null)
-            throw new IllegalStateException(opNameComment + " LHS node has no stack slot: " + left);
-        if (rightSlot == null)
-            throw new IllegalStateException(opNameComment + " RHS node has no stack slot: " + right);
-        if (resultSlot == null)
-            throw new IllegalStateException(opNameComment + " result node has no stack slot: " + opNode);
+        validateSlots(leftSlot, rightSlot, resultSlot, opNameComment);
 
-        // Most x86 arithmetic instructions can use one register and one memory operand.
-        // Operation: reg = reg op mem (e.g., add eax, [rbp - offset_right])
-        asm.formatted("mov %s, %s", TEMP_REG_1, leftSlot.toDwordPtrString())
-                .comment(opNameComment + ": Load LHS from " + leftSlot + " into " + TEMP_REG_1);
+        emitMoveMemToReg(TEMP_REG_1, leftSlot.toString(), asm);
 
-        asm.formatted("%s %s, %s", instruction, TEMP_REG_1, rightSlot.toDwordPtrString())
+        asm.formatted("%sl %s, %s", instruction, rightSlot.toString(), TEMP_REG_1)
                 .comment(opNameComment + ": " + instruction + " " + TEMP_REG_1 + " with RHS from " + rightSlot);
 
-        asm.formatted("mov %s, %s", resultSlot.toDwordPtrString(), TEMP_REG_1)
-                .comment(opNameComment + ": Store result from " + TEMP_REG_1 + " to " + resultSlot);
+        emitMoveRegToMem(resultSlot.toString(), TEMP_REG_1, asm);
+    }
+
+    private void validateSlots(StackSlot leftSlot, StackSlot rightSlot, StackSlot resultSlot, String opNameComment) {
+        if (leftSlot == null)
+            throw new IllegalStateException(opNameComment + " LHS node has no stack slot");
+        if (rightSlot == null)
+            throw new IllegalStateException(opNameComment + " RHS node has no stack slot");
+        if (resultSlot == null)
+            throw new IllegalStateException(opNameComment + " result node has no stack slot");
     }
 }

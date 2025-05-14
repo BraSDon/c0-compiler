@@ -10,10 +10,6 @@ public record StackSlot(int positiveOffset) { // e.g., 4, 8, 12 (bytes from rbp)
 
     @Override
     public String toString() {
-        return "[rbp - " + positiveOffset + "]";
-    }
-
-    public String toDwordPtrString() {
-        return "dword ptr [rbp - " + positiveOffset + "]";
+        return String.format("-%d(%%rbp)", positiveOffset);
     }
 }
