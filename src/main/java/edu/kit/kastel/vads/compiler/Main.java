@@ -47,12 +47,6 @@ public class Main {
                 .map(f -> new SsaTranslation(f, new LocalValueNumbering()).translate())
                 .toList();
 
-        String asmString = new X86CodeGenerator().generateCode(graphs);
-        Path tempAsmFile = output.resolveSibling(output.getFileName() + ".s");
-
-        Files.writeString(tempAsmFile, asmString);
-        int exitCode = runGccWithCleanup(tempAsmFile, output, 10);
-        System.out.println("GCC exit code: " + exitCode);
         if ("vcg".equals(System.getenv("DUMP_GRAPHS")) || "vcg".equals(System.getProperty("dumpGraphs"))) {
             Path tmp = output.toAbsolutePath().resolveSibling("graphs");
             Files.createDirectory(tmp);
@@ -60,6 +54,13 @@ public class Main {
                 dumpGraph(graph, tmp, "before-codegen");
             }
         }
+
+        String asmString = new X86CodeGenerator().generateCode(graphs);
+        Path tempAsmFile = output.resolveSibling(output.getFileName() + ".s");
+
+        Files.writeString(tempAsmFile, asmString);
+        int exitCode = runGccWithCleanup(tempAsmFile, output, 10);
+        System.out.println("GCC exit code: " + exitCode);
     }
 
     private static ProgramTree lexAndParse(Path input) throws IOException {
@@ -126,11 +127,11 @@ public class Main {
         }
 
         return exitCode;
+    }
 
     private static void dumpGraph(IrGraph graph, Path path, String key) throws IOException {
         Files.writeString(
-            path.resolve(graph.name() + "-" + key + ".vcg"),
-            YCompPrinter.print(graph)
-        );
+                path.resolve(graph.name() + "-" + key + ".vcg"),
+                YCompPrinter.print(graph));
     }
 }
