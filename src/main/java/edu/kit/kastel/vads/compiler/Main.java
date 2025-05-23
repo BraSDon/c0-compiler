@@ -9,6 +9,7 @@ import edu.kit.kastel.vads.compiler.ir.util.YCompPrinter;
 import edu.kit.kastel.vads.compiler.lexer.Lexer;
 import edu.kit.kastel.vads.compiler.parser.ParseException;
 import edu.kit.kastel.vads.compiler.parser.Parser;
+import edu.kit.kastel.vads.compiler.parser.Printer;
 import edu.kit.kastel.vads.compiler.parser.TokenSource;
 import edu.kit.kastel.vads.compiler.parser.ast.FunctionTree;
 import edu.kit.kastel.vads.compiler.parser.ast.ProgramTree;
@@ -49,9 +50,10 @@ public class Main {
 
         if ("vcg".equals(System.getenv("DUMP_GRAPHS")) || "vcg".equals(System.getProperty("dumpGraphs"))) {
             Path tmp = output.toAbsolutePath().resolveSibling("graphs");
-            Files.createDirectory(tmp);
+            Files.createDirectories(tmp);
+            String inputFileName = output.getFileName().toString().replaceFirst("[.][^.]+$", "");
             for (IrGraph graph : graphs) {
-                dumpGraph(graph, tmp, "before-codegen");
+                dumpGraph(graph, tmp, inputFileName);
             }
         }
 
