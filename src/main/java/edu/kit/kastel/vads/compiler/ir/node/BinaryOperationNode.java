@@ -1,7 +1,5 @@
 package edu.kit.kastel.vads.compiler.ir.node;
 
-import java.util.Set;
-import java.util.HashSet;
 
 public sealed abstract class BinaryOperationNode extends Node permits AddNode, DivNode, ModNode, MulNode, SubNode {
     public static final int LEFT = 0;
