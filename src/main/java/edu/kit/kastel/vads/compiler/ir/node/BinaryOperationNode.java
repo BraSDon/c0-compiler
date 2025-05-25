@@ -1,5 +1,6 @@
 package edu.kit.kastel.vads.compiler.ir.node;
 
+
 public sealed abstract class BinaryOperationNode extends Node permits AddNode, DivNode, ModNode, MulNode, SubNode {
     public static final int LEFT = 0;
     public static final int RIGHT = 1;
@@ -39,8 +40,8 @@ public sealed abstract class BinaryOperationNode extends Node permits AddNode, D
             return false;
         }
         return obj.getClass() == this.getClass()
-            && this.predecessor(LEFT) == binOp.predecessor(LEFT)
-            && this.predecessor(RIGHT) == binOp.predecessor(RIGHT);
+                && this.predecessor(LEFT) == binOp.predecessor(LEFT)
+                && this.predecessor(RIGHT) == binOp.predecessor(RIGHT);
     }
 
     @Override

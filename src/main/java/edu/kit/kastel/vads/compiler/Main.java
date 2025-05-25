@@ -1,26 +1,26 @@
 package edu.kit.kastel.vads.compiler;
 
-import edu.kit.kastel.vads.compiler.backend.aasm.CodeGenerator;
 import edu.kit.kastel.vads.compiler.backend.x86.X86CodeGenerator;
 import edu.kit.kastel.vads.compiler.ir.IrGraph;
 import edu.kit.kastel.vads.compiler.ir.SsaTranslation;
 import edu.kit.kastel.vads.compiler.ir.optimize.LocalValueNumbering;
 import edu.kit.kastel.vads.compiler.ir.util.YCompPrinter;
+import edu.kit.kastel.vads.compiler.ir.util.LivenessPrinter;
+import edu.kit.kastel.vads.compiler.ir.passes.analysis.LivenessAnalysis;
 import edu.kit.kastel.vads.compiler.lexer.Lexer;
 import edu.kit.kastel.vads.compiler.parser.ParseException;
 import edu.kit.kastel.vads.compiler.parser.Parser;
+import edu.kit.kastel.vads.compiler.parser.Printer;
 import edu.kit.kastel.vads.compiler.parser.TokenSource;
-import edu.kit.kastel.vads.compiler.parser.ast.FunctionTree;
 import edu.kit.kastel.vads.compiler.parser.ast.ProgramTree;
 import edu.kit.kastel.vads.compiler.semantic.SemanticAnalysis;
 import edu.kit.kastel.vads.compiler.semantic.SemanticException;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.Arrays;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 
@@ -36,6 +36,8 @@ public class Main {
 
         ProgramTree program = lexAndParse(input);
 
+        System.out.println(Printer.print(program));
+
         try {
             new SemanticAnalysis(program).analyze();
         } catch (SemanticException e) {
@@ -43,15 +45,28 @@ public class Main {
             System.exit(7);
         }
 
+        // Each top-level tree is a function, which will be translated into its own
+        // IrGraph.
         List<IrGraph> graphs = program.topLevelTrees().stream()
                 .map(f -> new SsaTranslation(f, new LocalValueNumbering()).translate())
                 .toList();
 
+        var livenessResults = graphs.stream()
+                .map(graph -> {
+                    LivenessAnalysis livenessAnalysis = new LivenessAnalysis();
+                    livenessAnalysis.analyze(graph);
+                    return livenessAnalysis.getResult();
+                })
+                .toList();
+
+        LivenessPrinter.printLiveness(graphs.get(0), livenessResults.get(0));
+
         if ("vcg".equals(System.getenv("DUMP_GRAPHS")) || "vcg".equals(System.getProperty("dumpGraphs"))) {
             Path tmp = output.toAbsolutePath().resolveSibling("graphs");
-            Files.createDirectory(tmp);
+            Files.createDirectories(tmp);
+            String inputFileName = output.getFileName().toString().replaceFirst("[.][^.]+$", "");
             for (IrGraph graph : graphs) {
-                dumpGraph(graph, tmp, "before-codegen");
+                dumpGraph(graph, tmp, inputFileName);
             }
         }
 
