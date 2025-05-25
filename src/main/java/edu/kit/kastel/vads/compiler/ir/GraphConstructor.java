@@ -47,6 +47,7 @@ class GraphConstructor {
     public Node newAdd(Node left, Node right) {
         return this.optimizer.transform(new AddNode(currentBlock(), left, right));
     }
+
     public Node newSub(Node left, Node right) {
         return this.optimizer.transform(new SubNode(currentBlock(), left, right));
     }
@@ -106,7 +107,28 @@ class GraphConstructor {
         return readVariableRecursive(variable, block);
     }
 
-
+    /**
+     * Recursively reads the value of a variable at the start of the given block.
+     * 
+     * If the block is not sealed (i.e., its set of predecessors is not yet
+     * finalized),
+     * creates an incomplete Phi node and records it for later completion.
+     * 
+     * If the block has a single predecessor, reads the variable from that
+     * predecessor.
+     * If the block has multiple predecessors, creates a Phi node and adds operands
+     * from all predecessors.
+     * The resulting value is written to the variable in the current block.
+     *
+     * A "sealed" block is one whose set of predecessor blocks is finalized and will
+     * not change.
+     * This allows Phi nodes to be completed with all necessary operands.
+     *
+     * @param variable the variable to read
+     * @param block    the block in which to read the variable
+     * @return the Node representing the value of the variable at the start of the
+     *         block
+     */
     private Node readVariableRecursive(Name variable, Block block) {
         Node val;
         if (!this.sealedBlocks.contains(block)) {
@@ -123,6 +145,19 @@ class GraphConstructor {
         return val;
     }
 
+    /**
+     * Adds operands to the given Phi node for the specified variable.
+     * For each predecessor of the Phi's block, reads the value of the variable at
+     * the end of that predecessor
+     * and appends it as an operand to the Phi node.
+     * After all operands are added, attempts to remove the Phi node if it is
+     * trivial (i.e., all operands are the same).
+     *
+     * @param variable the variable for which operands are added
+     * @param phi      the Phi node to which operands are appended
+     * @return the possibly simplified Node (the original Phi or a replacement if
+     *         trivial)
+     */
     Node addPhiOperands(Name variable, Phi phi) {
         for (Node pred : phi.block().predecessors()) {
             phi.appendOperand(readVariable(variable, pred.block()));
@@ -142,6 +177,7 @@ class GraphConstructor {
         for (Map.Entry<Name, Phi> entry : this.incompletePhis.getOrDefault(block, Map.of()).entrySet()) {
             addPhiOperands(entry.getKey(), entry.getValue());
         }
+        // NOTE: shouldnt we also remove Phi node from the incompletePhis map?
         this.sealedBlocks.add(block);
     }
 
