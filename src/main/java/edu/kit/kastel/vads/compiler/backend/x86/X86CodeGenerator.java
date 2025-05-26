@@ -4,6 +4,7 @@ package edu.kit.kastel.vads.compiler.backend.x86;
 import edu.kit.kastel.vads.compiler.ir.IrGraph;
 import edu.kit.kastel.vads.compiler.ir.node.*; // Wildcard import for IR node types
 import edu.kit.kastel.vads.compiler.ir.util.NodeSupport; // For predecessorSkipProj
+import edu.kit.kastel.vads.compiler.backend.codegen.CodeGenerator;
 import edu.kit.kastel.vads.compiler.backend.x86.ASMBuilder;
 
 import java.util.HashSet;
@@ -11,7 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class X86CodeGenerator {
+public class X86CodeGenerator implements CodeGenerator {
 
     private static final String TEMP_REG_1 = "%eax";
     private static final String TEMP_REG_2 = "%ebx";
@@ -22,7 +23,7 @@ public class X86CodeGenerator {
 
     private static final String INDENT = "    ";
 
-    public String generateCode(List<IrGraph> programGraphs) {
+    public X86Program generateCode(List<IrGraph> programGraphs) {
         ASMBuilder asm = new ASMBuilder(INDENT);
 
         emitHeader(asm);
@@ -41,7 +42,7 @@ public class X86CodeGenerator {
 
             emitFunctionPostamble(asm, alignedStackSpace);
         }
-        return asm.toString();
+        return new X86Program(asm.toString());
     }
 
     private void emitHeader(ASMBuilder asm) {
