@@ -1,6 +1,6 @@
 package edu.kit.kastel.vads.compiler.backend.aasm;
 
-import edu.kit.kastel.vads.compiler.backend.regalloc.Register;
+import edu.kit.kastel.vads.compiler.backend.regalloc.Location;
 import edu.kit.kastel.vads.compiler.backend.regalloc.RegisterAllocator;
 import edu.kit.kastel.vads.compiler.ir.IrGraph;
 import edu.kit.kastel.vads.compiler.ir.node.Block;
@@ -16,10 +16,10 @@ import java.util.Set;
 
 public class AasmRegisterAllocator implements RegisterAllocator {
     private int id;
-    private final Map<Node, Register> registers = new HashMap<>();
+    private final Map<Node, Location> registers = new HashMap<>();
 
     @Override
-    public Map<Node, Register> allocateRegisters(IrGraph graph) {
+    public Map<Node, Location> allocateRegisters(IrGraph graph) {
         Set<Node> visited = new HashSet<>();
         visited.add(graph.endBlock());
         scan(graph.endBlock(), visited);
@@ -38,6 +38,7 @@ public class AasmRegisterAllocator implements RegisterAllocator {
     }
 
     private static boolean needsRegister(Node node) {
-        return !(node instanceof ProjNode || node instanceof StartNode || node instanceof Block || node instanceof ReturnNode);
+        return !(node instanceof ProjNode || node instanceof StartNode || node instanceof Block
+                || node instanceof ReturnNode);
     }
 }
