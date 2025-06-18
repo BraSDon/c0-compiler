@@ -58,7 +58,7 @@ public class X86CodeGenerator implements CodeGenerator {
                     mov %s, 60
                     syscall
 
-                """, X86Register.RDI, X86Register.RAX, X86Register.RAX);
+                """, X86Register.EDI, X86Register.EAX, X86Register.EAX);
     }
 
     private String getFnPreamble(int stackSize) {
@@ -112,6 +112,9 @@ public class X86CodeGenerator implements CodeGenerator {
     }
 
     private void emitMove(Location dest, Location src) {
+        if (dest.equals(src)) {
+            return; // No need to move if both locations are the same
+        }
         switch (new LocationPair(dest, src)) {
             case LocationPair(X86Register d, X86Register s) -> emitMoveRegToReg(d, s);
             case LocationPair(X86Register d, StackSlot s) -> emitMoveMemToReg(d, s);
@@ -167,18 +170,18 @@ public class X86CodeGenerator implements CodeGenerator {
     private void emitReturn(ReturnNode ret, Map<Node, Location> locations) {
         Node returnValueNode = NodeSupport.predecessorSkipProj(ret, ReturnNode.RESULT);
         if (returnValueNode instanceof ConstIntNode constNode) {
-            emitMoveImmToReg(X86Register.RAX, constNode.value());
+            emitMoveImmToReg(X86Register.EAX, constNode.value());
             return;
         }
 
         Location loc = locations.get(returnValueNode);
 
         switch (loc) {
-            case StackSlot s -> emitMoveMemToReg(X86Register.RAX, s);
-            case X86Register r -> emitMoveRegToReg(X86Register.RAX, r);
+            case StackSlot s -> emitMoveMemToReg(X86Register.EAX, s);
+            case X86Register r -> emitMoveRegToReg(X86Register.EAX, r);
             default -> {
                 if (returnValueNode instanceof ConstIntNode constNode) {
-                    emitMoveImmToReg(X86Register.RAX, constNode.value());
+                    emitMoveImmToReg(X86Register.EAX, constNode.value());
                 }
             }
         }
@@ -192,27 +195,29 @@ public class X86CodeGenerator implements CodeGenerator {
         Location rightLoc = locations.get(right);
         Location resultLoc = locations.get(divOrMod);
 
+        System.out.printf("Result location for %s: %s%n", op, resultLoc);
+
         Operand leftOperand = nodeToOperand(left, locations);
         Operand rightOperand = nodeToOperand(right, locations);
 
         if (leftOperand instanceof ImmediateOperand leftImm) {
-            emitMoveImmToReg(X86Register.RAX, leftImm.value());
+            emitMoveImmToReg(X86Register.EAX, leftImm.value());
         } else {
-            emitMove(X86Register.RAX, leftLoc);
+            emitMove(X86Register.EAX, leftLoc);
         }
 
         if (rightOperand instanceof ImmediateOperand rightImm) {
-            rightOperand = new RegisterOperand(X86Register.SCRATCH);
-            emitMoveImmToReg(X86Register.SCRATCH, rightImm.value());
+            rightOperand = new RegisterOperand(X86Register.SCRATCH_32);
+            emitMoveImmToReg(X86Register.SCRATCH_32, rightImm.value());
         }
 
-        program.addInstruction(new X86Instruction(X86Operation.CQO));
+        program.addInstruction(new X86Instruction(X86Operation.CDQ));
 
         program.addInstruction(new X86Instruction(
                 X86Operation.IDIV,
                 rightOperand));
 
-        emitMove(resultLoc, op.equals("mod") ? X86Register.RDX : X86Register.RAX);
+        emitMove(resultLoc, op.equals("mod") ? X86Register.EDX : X86Register.EAX);
     }
 
     record OperandPair(Operand left, Operand right) {
@@ -229,31 +234,31 @@ public class X86CodeGenerator implements CodeGenerator {
         Location leftLoc = locations.get(left);
         Location resultLoc = locations.get(opNode);
 
-        switch (new OperandPair(leftOperand, rightOperand)) {
-            case OperandPair(ImmediateOperand leftImm, _) -> {
-                emitMoveImmToReg(X86Register.SCRATCH, leftImm.value());
-                program.addInstruction(new X86Instruction(
-                        op,
-                        new RegisterOperand(X86Register.SCRATCH),
-                        rightOperand));
-                emitMove(resultLoc, X86Register.SCRATCH);
-            }
-            case OperandPair(MemoryOperand leftMem, MemoryOperand _) -> {
-                emitMoveMemToReg(X86Register.SCRATCH, leftMem.stackSlot());
-                program.addInstruction(new X86Instruction(
-                        op,
-                        new RegisterOperand(X86Register.SCRATCH),
-                        rightOperand));
-                emitMove(resultLoc, X86Register.SCRATCH);
-            }
-            default -> {
-                program.addInstruction(new X86Instruction(
-                        op,
-                        leftOperand,
-                        rightOperand));
-                emitMove(resultLoc, leftLoc);
-            }
+        // The left operand's value is moved into the resultLoc (the register that will
+        // hold the operation's result) before the operation.
+        // The operation is performed with resultLoc as the destination.
+        // The right operand is correctly fetched.
+
+        // Ensure we operate on a register
+        X86Register opRegister = resultLoc instanceof X86Register reg ? reg : X86Register.SCRATCH_32;
+
+        // Move the left operand to the operation register
+        if (leftOperand instanceof ImmediateOperand leftImm) {
+            emitMoveImmToReg(opRegister, leftImm.value());
+        } else {
+            emitMove(opRegister, leftLoc);
         }
+
+        // Operation on the operation register with the right operand
+        // no special handling required as one Operand is always a register
+        program.addInstruction(new X86Instruction(
+                op,
+                new RegisterOperand(opRegister),
+                rightOperand));
+
+        // If resultLoc is a memory location, we need to write the value back
+        // emitMove avoids unnecessary moves if resultLoc == opRegister
+        emitMove(resultLoc, opRegister);
     }
 
     private static Operand nodeToOperand(Node node, Map<Node, Location> locations) {

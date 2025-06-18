@@ -19,7 +19,8 @@ public class X86RegisterAllocator implements RegisterAllocator {
         var interferenceGraph = new InterferenceGraph(graph);
         Map<Node, Integer> coloring = interferenceGraph.color();
 
-        List<X86Register> registers = new ArrayList<>(X86Register.allocatableGPRs());
+        // NOTE: when adding 64-bit values, we need to adjust this here
+        List<X86Register> registers = new ArrayList<>(X86Register.allocatable32BitGPRs());
         // boolean spillNeeded = interferenceGraph.getMaxColor() >= registers.size();
 
         return naiveAllocation(coloring, registers);
