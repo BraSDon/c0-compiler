@@ -44,9 +44,9 @@ public class YCompPrinter {
         if (!(node instanceof Block)) {
             this.clusters.computeIfAbsent(
                     node.block(),
-                    _ -> Collections.newSetFromMap(new IdentityHashMap<>())
-                )
-                .add(node);
+                    _ -> Collections.newSetFromMap(new IdentityHashMap<>()))
+                    .add(node);
+            prepare(node.block(), seen);
         }
         for (Node predecessor : node.predecessors()) {
             prepare(predecessor, seen);
@@ -70,12 +70,12 @@ public class YCompPrinter {
         result.append("\n  title: ").append('"').append(graphName).append('"').append("\n");
 
         result.append("""
-            display_edge_labels: yes
-            layoutalgorithm: mindepth //$ "Compilergraph"
-            manhattan_edges: yes
-            port_sharing: no
-            orientation: top_to_bottom
-            """.indent(2));
+                display_edge_labels: yes
+                layoutalgorithm: mindepth //$ "Compilergraph"
+                manhattan_edges: yes
+                port_sharing: no
+                orientation: top_to_bottom
+                """.indent(2));
 
         for (VcgColor color : VcgColor.values()) {
             result.append("\n  colorentry ").append(color.id()).append(": ").append(color.getRgb());
@@ -143,12 +143,10 @@ public class YCompPrinter {
 
     private String formatInputEdges(Node node) {
         var edges = IntStream.range(0, node.predecessors().size())
-            .mapToObj(
-                idx -> new Edge(
-                    node.predecessor(idx), node, idx, edgeColor(node.predecessor(idx), node)
-                )
-            )
-            .toList();
+                .mapToObj(
+                        idx -> new Edge(
+                                node.predecessor(idx), node, idx, edgeColor(node.predecessor(idx), node)))
+                .toList();
         return formatEdges(edges, "\n  priority: 50");
     }
 
@@ -191,7 +189,8 @@ public class YCompPrinter {
         StringJoiner result = new StringJoiner("\n");
         for (Edge edge : edges) {
             StringBuilder inner = new StringBuilder();
-            // edge: {sourcename: "n74" targetname: "n71" label: "0" class:14 priority:50 color:blue}
+            // edge: {sourcename: "n74" targetname: "n71" label: "0" class:14 priority:50
+            // color:blue}
             inner.append("edge: {");
             inner.append("\n  sourcename: ").append('"').append(nodeTitle(edge.src())).append('"');
             inner.append("\n  targetname: ").append('"').append(nodeTitle(edge.dst())).append('"');
@@ -264,17 +263,17 @@ public class YCompPrinter {
     }
 
     private enum VcgColor {
-        // colorentry 100: 204 204 204  gray
-        // colorentry 101: 222 239 234  faint green
-        // colorentry 103: 242 242 242  white-ish
-        // colorentry 104: 153 255 153  light green
-        // colorentry 105: 153 153 255  blue
-        // colorentry 106: 255 153 153  red
-        // colorentry 107: 255 255 153  yellow
-        // colorentry 108: 255 153 255  pink
-        // colorentry 110: 127 127 127  dark gray
-        // colorentry 111: 153 255 153  light green
-        // colorentry 114: 153 153 255  blue
+        // colorentry 100: 204 204 204 gray
+        // colorentry 101: 222 239 234 faint green
+        // colorentry 103: 242 242 242 white-ish
+        // colorentry 104: 153 255 153 light green
+        // colorentry 105: 153 153 255 blue
+        // colorentry 106: 255 153 153 red
+        // colorentry 107: 255 255 153 yellow
+        // colorentry 108: 255 153 255 pink
+        // colorentry 110: 127 127 127 dark gray
+        // colorentry 111: 153 255 153 light green
+        // colorentry 114: 153 153 255 blue
         CONTROL_FLOW("255 153 153"),
         MEMORY("153 153 255"),
         NORMAL("242 242 242"),
