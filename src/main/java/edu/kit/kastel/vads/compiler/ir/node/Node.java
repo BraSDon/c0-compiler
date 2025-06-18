@@ -8,13 +8,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 /// The base class for all nodes.
-public sealed abstract class Node permits BinaryOperationNode, Block, ConstIntNode, Phi, ProjNode, ReturnNode, StartNode {
+public sealed abstract class Node
+        permits BinaryOperationNode, Block, ConstIntNode, Phi, ProjNode, ReturnNode, StartNode {
+    private static int nextId = 0;
+
+    private final int id;
     private final IrGraph graph;
     private final Block block;
     private final List<Node> predecessors = new ArrayList<>();
     private final DebugInfo debugInfo;
 
     protected Node(Block block, Node... predecessors) {
+        this.id = nextId++;
         this.graph = block.graph();
         this.block = block;
         this.predecessors.addAll(List.of(predecessors));
@@ -26,6 +31,7 @@ public sealed abstract class Node permits BinaryOperationNode, Block, ConstIntNo
 
     protected Node(IrGraph graph) {
         assert this.getClass() == Block.class : "must be used by Block only";
+        this.id = nextId++;
         this.graph = graph;
         this.block = (Block) this;
         this.debugInfo = DebugInfo.NoInfo.INSTANCE;
@@ -60,7 +66,12 @@ public sealed abstract class Node permits BinaryOperationNode, Block, ConstIntNo
 
     @Override
     public final String toString() {
-        return (this.getClass().getSimpleName().replace("Node", "") + " " + info()).stripTrailing();
+        String baseName = this.getClass().getSimpleName().replace("Node", "");
+        String specificInfo = info(); // From subclasses like ConstInt, Proj
+        return String.format("%s{%d}%s",
+                baseName,
+                this.id,
+                (specificInfo.isEmpty() ? "" : " " + specificInfo)).stripTrailing();
     }
 
     protected String info() {

@@ -119,7 +119,8 @@ public class SsaTranslation {
                 case DIV -> projResultDivMod(data, data.constructor.newDiv(lhs, rhs));
                 case MOD -> projResultDivMod(data, data.constructor.newMod(lhs, rhs));
                 default ->
-                    throw new IllegalArgumentException("not a binary expression operator " + binaryOperationTree.operatorType());
+                    throw new IllegalArgumentException(
+                            "not a binary expression operator " + binaryOperationTree.operatorType());
             };
             popSpan();
             return Optional.of(res);
@@ -226,6 +227,5 @@ public class SsaTranslation {
             return data.constructor.newResultProj(divMod);
         }
     }
-
 
 }
