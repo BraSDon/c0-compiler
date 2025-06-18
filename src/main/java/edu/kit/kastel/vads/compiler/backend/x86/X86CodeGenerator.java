@@ -232,7 +232,10 @@ public class X86CodeGenerator implements CodeGenerator {
         Operand rightOperand = nodeToOperand(right, locations);
 
         Location leftLoc = locations.get(left);
+        Location rightLoc = locations.get(right);
         Location resultLoc = locations.get(opNode);
+
+        System.out.printf("Result location for %s: %s%n", op, resultLoc);
 
         // The left operand's value is moved into the resultLoc (the register that will
         // hold the operation's result) before the operation.
@@ -244,6 +247,12 @@ public class X86CodeGenerator implements CodeGenerator {
 
         // Move the left operand to the operation register
         if (leftOperand instanceof ImmediateOperand leftImm) {
+            if (rightLoc != null && rightLoc.equals(opRegister)) {
+                // rightLoc != SCRATCH_32 AND opRegister != SCRATCH_32, therefore we can use
+                // SCRATCH_32
+                emitMove(X86Register.SCRATCH_32, rightLoc);
+                rightOperand = new RegisterOperand(X86Register.SCRATCH_32);
+            }
             emitMoveImmToReg(opRegister, leftImm.value());
         } else {
             emitMove(opRegister, leftLoc);
