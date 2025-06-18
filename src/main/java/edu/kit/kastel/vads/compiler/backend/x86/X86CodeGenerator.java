@@ -245,14 +245,15 @@ public class X86CodeGenerator implements CodeGenerator {
         // Ensure we operate on a register
         X86Register opRegister = resultLoc instanceof X86Register reg ? reg : X86Register.SCRATCH_32;
 
+        if (rightLoc != null && rightLoc.equals(opRegister)) {
+            // rightLoc != SCRATCH_32 AND opRegister != SCRATCH_32, therefore we can use
+            // SCRATCH_32
+            emitMove(X86Register.SCRATCH_32, rightLoc);
+            rightOperand = new RegisterOperand(X86Register.SCRATCH_32);
+        }
+
         // Move the left operand to the operation register
         if (leftOperand instanceof ImmediateOperand leftImm) {
-            if (rightLoc != null && rightLoc.equals(opRegister)) {
-                // rightLoc != SCRATCH_32 AND opRegister != SCRATCH_32, therefore we can use
-                // SCRATCH_32
-                emitMove(X86Register.SCRATCH_32, rightLoc);
-                rightOperand = new RegisterOperand(X86Register.SCRATCH_32);
-            }
             emitMoveImmToReg(opRegister, leftImm.value());
         } else {
             emitMove(opRegister, leftLoc);
