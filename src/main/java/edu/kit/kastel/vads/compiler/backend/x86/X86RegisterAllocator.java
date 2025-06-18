@@ -13,6 +13,8 @@ import java.util.Map;
 import java.util.HashMap;
 
 public class X86RegisterAllocator implements RegisterAllocator {
+    int stackOffset = 0;
+
     public Map<Node, Location> allocateRegisters(IrGraph graph) {
         var interferenceGraph = new InterferenceGraph(graph);
         Map<Node, Integer> coloring = interferenceGraph.color();
@@ -40,7 +42,6 @@ public class X86RegisterAllocator implements RegisterAllocator {
     }
 
     private Map<Integer, StackSlot> getStackSlots(Map<Node, Integer> coloring, int numRegisters) {
-        int stackOffset = 0;
         Map<Integer, StackSlot> stackSlots = new HashMap<>();
         for (Map.Entry<Node, Integer> entry : coloring.entrySet()) {
             int color = entry.getValue();
@@ -50,5 +51,9 @@ public class X86RegisterAllocator implements RegisterAllocator {
             }
         }
         return stackSlots;
+    }
+
+    public int getTotalAllocatedStackSize() {
+        return stackOffset;
     }
 }

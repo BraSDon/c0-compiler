@@ -123,6 +123,9 @@ public enum X86Register implements Register {
         allocatable.remove(RSP);
         allocatable.remove(RBP);
         allocatable.remove(SCRATCH); // Scratch register is reserved for load from stack
+        allocatable.remove(RAX);
+        allocatable.remove(RBX);
+        allocatable.remove(RDX);
         return Collections.unmodifiableSet(allocatable);
     }
 

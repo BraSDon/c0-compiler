@@ -5,6 +5,8 @@ import java.nio.file.Path;
 
 public interface AssemblyProgram {
 
+    String INDENT = "    ";
+
     /**
      * Compiles the assembly program to an executable.
      * If the program was not written to a file yet, it will be written to the same

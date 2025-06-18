@@ -1,7 +1,11 @@
 package edu.kit.kastel.vads.compiler.backend.x86;
 
+import edu.kit.kastel.vads.compiler.backend.codegen.AssemblyProgram;
+
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.ArrayList;
+import java.util.Optional;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -9,9 +13,29 @@ import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import edu.kit.kastel.vads.compiler.backend.codegen.AssemblyProgram;
+public class X86Program implements AssemblyProgram {
 
-public record X86Program(String value) implements AssemblyProgram {
+    private final List<String> headers = new ArrayList<>();
+    private final List<X86Function> functions = new ArrayList<>();
+    private Optional<X86Function> currFn = Optional.empty();
+
+    public void addHeader(String header) {
+        headers.add(header);
+    }
+
+    public void startFunction(String label, String preamble, String postamble) {
+        currFn = Optional.of(new X86Function(label, preamble, postamble));
+        functions.add(currFn.get());
+    }
+
+    public void addInstruction(X86Instruction instr) {
+        currFn.ifPresent(fn -> fn.addInstruction(instr));
+    }
+
+    public String currFnLabel() {
+        return currFn.map(X86Function::getLabel).orElse("");
+    }
+
     @Override
     public void compile(Path executablePath) throws IOException {
         Path tempAsmFile = executablePath.resolveSibling(executablePath.getFileName() + ".s");
@@ -27,12 +51,15 @@ public record X86Program(String value) implements AssemblyProgram {
         if (!fileName.endsWith(".s")) {
             filePath = filePath.resolveSibling(fileName + ".s");
         }
-        Files.writeString(filePath, value);
+        Files.writeString(filePath, toString());
     }
 
     @Override
     public String toString() {
-        return value;
+        StringBuilder sb = new StringBuilder();
+        headers.forEach(header -> sb.append(header).append(System.lineSeparator()));
+        functions.forEach(fn -> sb.append(fn.toString()).append(System.lineSeparator()));
+        return sb.toString();
     }
 
     private static int runGccWithCleanup(Path asmPath, Path exePath, int timeoutSec) {

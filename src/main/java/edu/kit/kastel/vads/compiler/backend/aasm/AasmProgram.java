@@ -21,7 +21,7 @@ public record AasmProgram(List<AasmInstruction> instructions) implements Assembl
     public String toString() {
         StringBuilder sb = new StringBuilder();
         for (AasmInstruction instruction : instructions) {
-            sb.append(instruction.toAssembly()).append("\n");
+            sb.append(instruction.toString()).append("\n");
         }
         return sb.toString();
     }

@@ -9,5 +9,9 @@ public record StackSlot(int positiveOffset) implements Location {
                     "Slot offset must be positive and a multiple of " + SLOT_SIZE + ". Got: " + positiveOffset);
         }
     }
-    // TODO: implement toString()
+
+    @Override
+    public String toString() {
+        return "[rbp - " + positiveOffset + "]";
+    }
 }

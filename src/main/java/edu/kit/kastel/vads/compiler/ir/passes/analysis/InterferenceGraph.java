@@ -2,7 +2,7 @@ package edu.kit.kastel.vads.compiler.ir.passes.analysis;
 
 import edu.kit.kastel.vads.compiler.ir.node.Node;
 import edu.kit.kastel.vads.compiler.ir.node.BinaryOperationNode;
-import edu.kit.kastel.vads.compiler.backend.x86.RegisterRequirement;
+import edu.kit.kastel.vads.compiler.backend.regalloc.RegisterRequirement;
 import edu.kit.kastel.vads.compiler.ir.IrGraph;
 
 import java.util.Set;
@@ -41,6 +41,7 @@ public class InterferenceGraph {
                     // All nodes in liveOut != node are interfering with node
                     liveOut.stream()
                             .filter(otherNode -> !otherNode.equals(node))
+                            .filter(RegisterRequirement::needsRegister)
                             .forEach(otherNode -> g.addEdge(node, otherNode));
                 }
                 default -> {
@@ -49,6 +50,7 @@ public class InterferenceGraph {
         }
     }
 
+    // TODO: Implement pre-coloring for operations that require specific registers
     public Map<Node, Integer> color() {
         Node[] elimOrder = simplicialEliminationOrder();
         int maxDegree = maxDegree();
