@@ -13,7 +13,7 @@ import java.util.Map;
 import java.util.HashMap;
 
 public class X86RegisterAllocator implements RegisterAllocator {
-    int stackOffset = 0;
+    int stackOffset = StackSlot.SLOT_SIZE;
 
     public Map<Node, Location> allocateRegisters(IrGraph graph) {
         var interferenceGraph = new InterferenceGraph(graph);

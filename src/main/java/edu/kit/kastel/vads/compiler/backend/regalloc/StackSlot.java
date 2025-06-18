@@ -12,6 +12,7 @@ public record StackSlot(int positiveOffset) implements Location {
 
     @Override
     public String toString() {
-        return "[rbp - " + positiveOffset + "]";
+        // TODO: adjust for 64-bit architecture
+        return "dword ptr [rbp - " + positiveOffset + "]";
     }
 }
